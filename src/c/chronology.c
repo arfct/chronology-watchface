@@ -86,17 +86,14 @@ static void my_hand_draw(Layer *layer, GContext *ctx)
   int32_t perp_thickness = 3;
 
   GPoint offset = {
-      .x = (int16_t)(perp_thickness * cos_lookup(perp_angle) / TRIG_MAX_RATIO),  // 8
-      .y = (int16_t)(perp_thickness * sin_lookup(perp_angle) / TRIG_MAX_RATIO)}; // 8
+      .x = (int16_t)(perp_thickness * cos_lookup(perp_angle) / TRIG_MAX_RATIO),
+      .y = (int16_t)(perp_thickness * sin_lookup(perp_angle) / TRIG_MAX_RATIO)};
 
   GPoint hand_points[4] = {
       {center.x - offset.x, center.y - offset.y},
       {center.x + offset.x, center.y + offset.y},
       {end_point.x + offset.x, end_point.y + offset.y},
       {end_point.x - offset.x, end_point.y - offset.y}};
-
-  // log the points
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "Points: %d, %d, %d, %d", hand_points[0].x, hand_points[0].y, hand_points[1].x, hand_points[1].y);
 
   GPath *hand_path = gpath_create(&(GPathInfo){
       .num_points = 4,
