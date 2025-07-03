@@ -4,7 +4,7 @@ static Window *s_main_window;
 static Layer *s_face_layer;
 static Layer *s_hand_layer;
 static TextLayer *s_battery_layer;
-static bool debug = true;
+static bool debug = false;
 static bool inverted = true;
 
 static void click_config_provider(void *context);
