@@ -6,7 +6,6 @@ static Layer *s_hand_layer;
 static TextLayer *s_battery_layer;
 static bool debug = true;
 static bool inverted = true;
-static GDrawCommandImage *s_hand_command_image;
 
 // PDC structure for in-memory hand
 typedef struct
@@ -361,12 +360,6 @@ static void init()
 
 static void deinit()
 {
-  // Clean up PDC resource
-  if (s_hand_command_image)
-  {
-    gdraw_command_image_destroy(s_hand_command_image);
-  }
-
   // Destroy Window
   window_destroy(s_main_window);
 }
