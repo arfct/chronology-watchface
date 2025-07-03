@@ -1,0 +1,33 @@
+{
+  "name": "Chronology",
+  "author": "Artifact",
+  "version": "1.1.0",
+  "keywords": ["pebble-watchface"],
+  "private": true,
+  "dependencies": {},
+  "scripts": {
+    "install-emulator": "pebble install --emulator basalt",
+    "install-phone": "pebble install --phone"
+  },
+  "pebble": {
+    "displayName": "Chronology 1.1",
+    "uuid": "6ed35b3b-813b-402c-b3ed-c7d0146f70ec",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+      "aplite",
+      "basalt",
+      "chalk",
+      "diorite"
+    ],
+    "watchapp": {
+      "watchface": true
+    },
+    "messageKeys": [
+      "dummy"
+    ],
+    "resources": {
+      "media": []
+    }
+  }
+}
