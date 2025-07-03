@@ -7,69 +7,7 @@ static TextLayer *s_battery_layer;
 static bool debug = true;
 static bool inverted = true;
 
-// PDC structure for in-memory hand
-typedef struct
-{
-  uint8_t magic[4];      // "PDCI"
-  uint32_t size;         // Total size
-  uint8_t version;       // Version (1)
-  uint8_t reserved;      // Reserved (0)
-  uint16_t view_width;   // View box width
-  uint16_t view_height;  // View box height
-  uint16_t num_commands; // Number of commands (1)
-  // Draw command data
-  uint8_t type;              // Command type (1 = Path)
-  uint8_t flags;             // Flags (0)
-  uint8_t stroke_color;      // Stroke color
-  uint8_t stroke_width;      // Stroke width
-  uint8_t fill_color;        // Fill color
-  uint16_t path_open_radius; // Path open (0 = closed)
-  uint16_t num_points;       // Number of points (4)
-  GPoint points[4];          // Points array
-} __attribute__((packed)) HandPDC;
-
 static void click_config_provider(void *context);
-
-static uint8_t *create_hand_pdc_data()
-{
-  static HandPDC hand_pdc = {
-      .magic = {'P', 'D', 'C', 'I'},
-      .size = sizeof(HandPDC) - 8, // Size excludes magic and size fields
-      .version = 1,
-      .reserved = 0,
-      .view_width = 200,
-      .view_height = 200,
-      .num_commands = 1,
-      .type = 1, // GDrawCommandTypePath
-      .flags = 0,
-      .stroke_color = 0, // Will be set dynamically
-      .stroke_width = 1,
-      .fill_color = 0,       // Will be set dynamically
-      .path_open_radius = 0, // Closed path
-      .num_points = 4,
-      .points = {{0, 0}, {0, 0}, {0, 0}, {0, 0}} // Will be set dynamically
-  };
-
-  return (uint8_t *)&hand_pdc;
-}
-
-static void update_hand_pdc_points(GPoint *points)
-{
-  static HandPDC *hand_pdc = NULL;
-  if (!hand_pdc)
-  {
-    hand_pdc = (HandPDC *)create_hand_pdc_data();
-  }
-
-  // Update the points in our PDC structure
-  for (int i = 0; i < 4; i++)
-  {
-    hand_pdc->points[i] = points[i];
-  }
-
-  // Update colors based on current theme
-  hand_pdc->fill_color = PBL_IF_BW_ELSE(inverted ? GColorDarkGray : GColorLightGray, GColorRed);
-}
 
 static void update_time()
 {
@@ -138,6 +76,8 @@ static void my_hand_draw(Layer *layer, GContext *ctx)
   if (debug)
     angle = 12 * tick_time->tm_sec;
 
+  graphics_context_set_fill_color(ctx, PBL_IF_BW_ELSE(inverted ? GColorDarkGray : GColorLightGray, GColorRed));
+
   GPoint center = GPoint(face_frame.origin.x + face_frame.size.w / 2, face_frame.origin.y + face_frame.size.h / 2);
   GPoint end_point = gpoint_from_polar(face_frame, GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(angle));
 
@@ -146,8 +86,8 @@ static void my_hand_draw(Layer *layer, GContext *ctx)
   int32_t perp_thickness = 3;
 
   GPoint offset = {
-      .x = (int16_t)(perp_thickness * cos_lookup(perp_angle) / TRIG_MAX_RATIO),
-      .y = (int16_t)(perp_thickness * sin_lookup(perp_angle) / TRIG_MAX_RATIO)};
+      .x = (int16_t)(perp_thickness * cos_lookup(perp_angle) / TRIG_MAX_RATIO),  // 8
+      .y = (int16_t)(perp_thickness * sin_lookup(perp_angle) / TRIG_MAX_RATIO)}; // 8
 
   GPoint hand_points[4] = {
       {center.x - offset.x, center.y - offset.y},
@@ -155,45 +95,15 @@ static void my_hand_draw(Layer *layer, GContext *ctx)
       {end_point.x + offset.x, end_point.y + offset.y},
       {end_point.x - offset.x, end_point.y - offset.y}};
 
+  // log the points
   APP_LOG(APP_LOG_LEVEL_DEBUG, "Points: %d, %d, %d, %d", hand_points[0].x, hand_points[0].y, hand_points[1].x, hand_points[1].y);
 
-  // Update our in-memory PDC with current points and colors
-  update_hand_pdc_points(hand_points);
+  GPath *hand_path = gpath_create(&(GPathInfo){
+      .num_points = 4,
+      .points = hand_points});
 
-  // Get the PDC data and try to use it as a command list
-  HandPDC *pdc_data = (HandPDC *)create_hand_pdc_data();
-
-  // Create a GDrawCommand from our PDC data
-  GDrawCommand *hand_command = (GDrawCommand *)&(pdc_data->type);
-
-  if (hand_command)
-  {
-    // Set current fill color
-    gdraw_command_set_fill_color(hand_command, PBL_IF_BW_ELSE(inverted ? GColorDarkGray : GColorLightGray, GColorRed));
-
-    // Update points
-    uint16_t num_points = gdraw_command_get_num_points(hand_command);
-    for (uint16_t i = 0; i < num_points && i < 4; i++)
-    {
-      gdraw_command_set_point(hand_command, i, hand_points[i]);
-    }
-
-    // Draw the command directly
-    gdraw_command_draw(ctx, hand_command);
-  }
-  else
-  {
-    // Fallback to GPath if PDC approach fails
-    graphics_context_set_fill_color(ctx, PBL_IF_BW_ELSE(inverted ? GColorDarkGray : GColorLightGray, GColorRed));
-    graphics_context_set_antialiased(ctx, true);
-
-    GPath *hand_path = gpath_create(&(GPathInfo){
-        .num_points = 4,
-        .points = hand_points});
-
-    gpath_draw_filled(ctx, hand_path);
-    gpath_destroy(hand_path);
-  }
+  gpath_draw_filled(ctx, hand_path);
+  gpath_destroy(hand_path);
 }
 
 static void my_face_draw(Layer *layer, GContext *ctx)
@@ -334,9 +244,6 @@ static void main_window_unload(Window *window)
 static void init()
 {
   inverted = PBL_IF_BW_ELSE(true, false); // persist_read_bool(0)
-
-  // Initialize in-memory PDC for hand drawing
-  APP_LOG(APP_LOG_LEVEL_INFO, "Using in-memory PDC for hand rendering");
 
   // Create main Window element and assign to pointer
   s_main_window = window_create();
