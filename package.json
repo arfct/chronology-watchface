@@ -6,8 +6,7 @@
   "private": true,
   "dependencies": {},
   "scripts": {
-    "install-emulator": "pebble install --emulator basalt",
-    "install-phone": "pebble install --phone"
+    "install-emulator": "pebble build && pebble install --emulator aplite && pebble logs"
   },
   "pebble": {
     "displayName": "Chronology 1.1",

@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Build and Install",
+            "type": "shell",
+            "request": "launch",
+            "command": "pebble build && pebble install --emulator aplite",
+            "console": "integratedTerminal"
+        }
+    ]
+}
+

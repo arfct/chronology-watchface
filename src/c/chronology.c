@@ -1,5 +1,81 @@
 #include <pebble.h>
 
+// PDC (Pebble Draw Command) structures
+typedef struct
+{
+  int16_t x;
+  int16_t y;
+} __attribute__((packed)) Point;
+
+typedef struct
+{
+  uint8_t type;
+  uint8_t flags;
+  uint8_t stroke_color;
+  uint8_t stroke_width;
+  uint8_t fill_color;
+  uint16_t path_open_radius;
+  uint16_t num_points;
+  Point points[];
+} __attribute__((packed)) PebbleDrawCommand;
+
+typedef struct
+{
+  uint16_t num_commands;
+  PebbleDrawCommand commands[];
+} __attribute__((packed)) PebbleDrawCommandList;
+
+typedef struct
+{
+  uint16_t width;
+  uint16_t height;
+} __attribute__((packed)) ViewBox;
+
+typedef struct
+{
+  uint8_t version;
+  uint8_t reserved;
+  ViewBox view_box;
+  PebbleDrawCommandList command_list;
+} __attribute__((packed)) PebbleDrawCommandImage;
+
+typedef struct
+{
+  char magic[4];
+  PebbleDrawCommandImage image;
+} __attribute__((packed)) PebbleDrawCommandImageFile;
+
+// Function to create a simple PDC image in memory
+PebbleDrawCommandImageFile *create_pdc_image(uint16_t width, uint16_t height, uint16_t num_commands)
+{
+  size_t total_size = sizeof(PebbleDrawCommandImageFile) + (num_commands * sizeof(PebbleDrawCommand));
+  PebbleDrawCommandImageFile *pdc = malloc(total_size);
+  if (!pdc)
+    return NULL;
+
+  memcpy(pdc->magic, "PDCI", 4);
+  pdc->image_size = total_size - 8;
+  pdc->image.version = 1;
+  pdc->image.reserved = 0;
+  pdc->image.view_box.width = width;
+  pdc->image.view_box.height = height;
+  pdc->image.command_list.num_commands = num_commands;
+
+  return pdc;
+}
+
+// Function to add points to a PDC draw command
+bool add_points_to_command(PebbleDrawCommand *command, const Point *points, uint16_t num_points)
+{
+  if (!command || !points || num_points == 0)
+    return false;
+
+  command->num_points = num_points;
+  memcpy(command->points, points, num_points * sizeof(Point));
+
+  return true;
+}
+
 static Window *s_main_window;
 static Layer *s_face_layer;
 static Layer *s_hand_layer;
@@ -118,16 +194,16 @@ static void my_face_draw(Layer *layer, GContext *ctx)
 
   for (int i = 0; i < 12; i++)
   {
-    int angle = i * 30;
+    int angle = DEG_TO_TRIGANGLE(i * 30);
 
     static char buf[] = "000"; /* <-- implicit NUL-terminator at the end here */
     snprintf(buf, sizeof(buf), "%02d", i == 0 ? 12 : i);
     int ascender = 8;
-    GPoint text_point = gpoint_from_polar(grect_crop(bounds, 50), GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(angle));
+    GPoint text_point = gpoint_from_polar(grect_crop(bounds, 50), GOvalScaleModeFitCircle, angle);
     GRect text_rect = GRect(text_point.x - 24, text_point.y - 24, 48, 48);
 
     GSize size = graphics_text_layout_get_content_size(buf,
-                                                       fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD),
+                                                       fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD),
                                                        text_rect, GTextOverflowModeWordWrap, GTextAlignmentLeft);
 
     /// graphics_draw_bitmap_in_rect(ctx, image, layer_get_bounds(layer));
@@ -142,35 +218,40 @@ static void my_face_draw(Layer *layer, GContext *ctx)
                        GTextOverflowModeWordWrap, GTextAlignmentRight, NULL);
 
     // graphics_draw_rect(ctx, text_rect);
-    //  Draw hour
 
+    //  Draw hour
     graphics_context_set_stroke_color(ctx, inverted ? GColorWhite : GColorBlack);
     graphics_context_set_stroke_width(ctx, 2);
     graphics_draw_line(ctx,
-                       gpoint_from_polar(grect_crop(bounds, 30), GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(angle)),
-                       gpoint_from_polar(bounds, GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(angle)));
+                       gpoint_from_polar(grect_crop(bounds, 30), GOvalScaleModeFitCircle, angle),
+                       gpoint_from_polar(bounds, GOvalScaleModeFitCircle, angle));
 
-    angle += 15;
-    // Draw half hour
+    // Draw all 5-minute markers in one loop
+    for (int j = 1; j < 12; j++)
+    {
+      int16_t line_length;
+      GColor line_color = inverted ? GColorLightGray : GColorDarkGray;
 
-    graphics_context_set_stroke_color(ctx, inverted ? GColorLightGray : GColorDarkGray);
-    graphics_context_set_stroke_width(ctx, 2);
-    graphics_draw_line(ctx,
-                       gpoint_from_polar(grect_crop(bounds, 10), GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(angle)),
-                       gpoint_from_polar(bounds, GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(angle)));
+      if (j % 6 == 0)
+      { // Half hour marks
+        line_length = 20;
+      }
+      else if (j % 3 == 0)
+      { // Quarter hour marks
+        line_length = 10;
+      }
+      else
+      { // 5-minute marks
+        line_length = 3;
+      }
+      angle += DEG_TO_TRIGANGLE(2.5);
 
-    angle += 7.5;
-    // Draw quarter hours
-
-    graphics_context_set_stroke_color(ctx, inverted ? GColorLightGray : GColorDarkGray);
-    graphics_context_set_stroke_width(ctx, 2);
-    graphics_draw_line(ctx,
-                       gpoint_from_polar(grect_crop(bounds, 10), GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(angle)),
-                       gpoint_from_polar(bounds, GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(angle)));
-    angle -= 15;
-    graphics_draw_line(ctx,
-                       gpoint_from_polar(grect_crop(bounds, 10), GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(angle)),
-                       gpoint_from_polar(bounds, GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(angle)));
+      graphics_context_set_stroke_color(ctx, line_color);
+      graphics_context_set_stroke_width(ctx, 2);
+      graphics_draw_line(ctx,
+                         gpoint_from_polar(grect_crop(bounds, line_length), GOvalScaleModeFitCircle, angle),
+                         gpoint_from_polar(bounds, GOvalScaleModeFitCircle, angle));
+    }
   }
 }
 
@@ -196,7 +277,7 @@ static void main_window_load(Window *window)
   text_layer_set_background_color(s_battery_layer, GColorClear);
   text_layer_set_text_color(s_battery_layer, GColorDarkGray);
   text_layer_set_text(s_battery_layer, "50");
-  text_layer_set_font(s_battery_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
+  text_layer_set_font(s_battery_layer, fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD));
   text_layer_set_text_alignment(s_battery_layer, GTextAlignmentCenter);
 
   // Add it as a child layer to the Window's root layer
