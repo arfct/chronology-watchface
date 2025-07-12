@@ -26,7 +26,14 @@
       "dummy"
     ],
     "resources": {
-      "media": []
+      "media": [
+        {
+          "menuIcon": true,
+          "type": "png",
+          "name": "APP_ICON",
+          "file": "images/app_icon.png"
+        }
+      ]
     }
   }
 }

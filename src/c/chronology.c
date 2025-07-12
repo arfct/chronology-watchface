@@ -42,6 +42,7 @@ typedef struct
 typedef struct
 {
   char magic[4];
+  uint32_t image_size;
   PebbleDrawCommandImage image;
 } __attribute__((packed)) PebbleDrawCommandImageFile;
 
@@ -140,7 +141,7 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed)
 
 static void my_hand_draw(Layer *layer, GContext *ctx)
 {
-  GRect bounds = layer_get_bounds(layer);
+  // GRect bounds = layer_get_bounds(layer);
   GRect face_frame = layer_get_frame(s_face_layer);
 
   time_t temp = time(NULL);
@@ -157,7 +158,6 @@ static void my_hand_draw(Layer *layer, GContext *ctx)
   GPoint center = GPoint(face_frame.origin.x + face_frame.size.w / 2, face_frame.origin.y + face_frame.size.h / 2);
   GPoint end_point = gpoint_from_polar(face_frame, GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(angle));
 
-  int32_t hour_angle = angle;
   int32_t perp_angle = DEG_TO_TRIGANGLE(angle);
   int32_t perp_thickness = 3;
 
@@ -197,14 +197,14 @@ static void my_face_draw(Layer *layer, GContext *ctx)
     int angle = DEG_TO_TRIGANGLE(i * 30);
 
     static char buf[] = "000"; /* <-- implicit NUL-terminator at the end here */
-    snprintf(buf, sizeof(buf), "%02d", i == 0 ? 12 : i);
+    snprintf(buf, sizeof(buf), "%01d", i == 0 ? 12 : i);
     int ascender = 8;
-    GPoint text_point = gpoint_from_polar(grect_crop(bounds, 50), GOvalScaleModeFitCircle, angle);
+    GPoint text_point = gpoint_from_polar(grect_crop(bounds, 60), GOvalScaleModeFitCircle, angle);
     GRect text_rect = GRect(text_point.x - 24, text_point.y - 24, 48, 48);
 
     GSize size = graphics_text_layout_get_content_size(buf,
-                                                       fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD),
-                                                       text_rect, GTextOverflowModeWordWrap, GTextAlignmentLeft);
+                                                       fonts_get_system_font(FONT_KEY_BITHAM_34_MEDIUM_NUMBERS),
+                                                       text_rect, GTextOverflowModeFill, GTextAlignmentCenter);
 
     /// graphics_draw_bitmap_in_rect(ctx, image, layer_get_bounds(layer));
 
@@ -213,11 +213,9 @@ static void my_face_draw(Layer *layer, GContext *ctx)
     text_rect.origin = GPoint(text_point.x - size.w / 2, text_point.y - size.h / 2);
 
     graphics_draw_text(ctx, buf,
-                       fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD),
+                       fonts_get_system_font(FONT_KEY_BITHAM_34_MEDIUM_NUMBERS),
                        grect_inset(text_rect, GEdgeInsets4(-8, 0, 0, 0)),
-                       GTextOverflowModeWordWrap, GTextAlignmentRight, NULL);
-
-    // graphics_draw_rect(ctx, text_rect);
+                       GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 
     //  Draw hour
     graphics_context_set_stroke_color(ctx, inverted ? GColorWhite : GColorBlack);
@@ -234,15 +232,15 @@ static void my_face_draw(Layer *layer, GContext *ctx)
 
       if (j % 6 == 0)
       { // Half hour marks
-        line_length = 20;
+        line_length = 16;
       }
       else if (j % 3 == 0)
       { // Quarter hour marks
-        line_length = 10;
+        line_length = 5;
       }
       else
       { // 5-minute marks
-        line_length = 3;
+        line_length = 0;
       }
       angle += DEG_TO_TRIGANGLE(2.5);
 
@@ -257,6 +255,7 @@ static void my_face_draw(Layer *layer, GContext *ctx)
 
 static void main_window_load(Window *window)
 {
+
   // Get information about the Window
   Layer *window_layer = window_get_root_layer(window);
   GRect bounds = layer_get_bounds(window_layer);
@@ -279,16 +278,6 @@ static void main_window_load(Window *window)
   text_layer_set_text(s_battery_layer, "50");
   text_layer_set_font(s_battery_layer, fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD));
   text_layer_set_text_alignment(s_battery_layer, GTextAlignmentCenter);
-
-  // Add it as a child layer to the Window's root layer
-  // layer_add_child(window_layer, text_layer_get_layer(s_battery_layer));
-
-  //   s_example_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_FACE);
-  //   s_bitmap_layer = bitmap_layer_create(bounds);
-  //   bitmap_layer_set_compositing_mode(s_bitmap_layer, GCompOpSet);
-  //   bitmap_layer_set_bitmap(s_bitmap_layer, s_example_bitmap);
-  //   bitmap_layer_set_alignment(s_bitmap_layer, GAlignCenter);
-  //   layer_add_child(window_layer, bitmap_layer_get_layer(s_bitmap_layer));
 
   update_frame_location();
 
