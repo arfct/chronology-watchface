@@ -34,9 +34,9 @@
       "configurable"
     ],
     "messageKeys": [
-      "INVERT_COLORS",
-      "HAND_COLOR",
-      "FACE_COLOR"
+      "BACKGROUND_COLOR",
+      "FACE_COLOR",
+      "HAND_COLOR"
     ],
     "resources": {
       "media": [
@@ -45,11 +45,6 @@
           "type": "png",
           "name": "APP_ICON",
           "file": "images/app_icon.png"
-        },
-        {
-          "type": "png",
-          "name": "PREVIEW_IMAGE",
-          "file": "images/preview.png"
         }
       ]
     }

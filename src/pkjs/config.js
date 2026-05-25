@@ -11,10 +11,41 @@ module.exports = [
         "defaultValue": "Display Settings"
       },
       {
-        "type": "toggle",
-        "messageKey": "INVERT_COLORS",
-        "label": "Light mode",
-        "defaultValue": false
+        "type": "select",
+        "messageKey": "BACKGROUND_COLOR",
+        "label": "Background color",
+        "defaultValue": 0,
+        "options": [
+          { "label": "Black", "value": 0 },
+          { "label": "White", "value": 1 },
+          { "label": "Red", "value": 2 },
+          { "label": "Orange", "value": 3 },
+          { "label": "Yellow", "value": 4 },
+          { "label": "Green", "value": 5 },
+          { "label": "Blue", "value": 6 },
+          { "label": "Purple", "value": 7 },
+          { "label": "Pink", "value": 8 },
+          { "label": "Gray", "value": 9 }
+        ]
+      },
+      {
+        "type": "select",
+        "messageKey": "FACE_COLOR",
+        "label": "Face color",
+        "defaultValue": 0,
+        "options": [
+          { "label": "Transparent", "value": 0 },
+          { "label": "Black", "value": 1 },
+          { "label": "White", "value": 2 },
+          { "label": "Red", "value": 3 },
+          { "label": "Orange", "value": 4 },
+          { "label": "Yellow", "value": 5 },
+          { "label": "Green", "value": 6 },
+          { "label": "Blue", "value": 7 },
+          { "label": "Purple", "value": 8 },
+          { "label": "Pink", "value": 9 },
+          { "label": "Gray", "value": 10 }
+        ]
       },
       {
         "type": "select",
@@ -31,50 +62,7 @@ module.exports = [
           { "label": "Pink", "value": 6 },
           { "label": "Gray", "value": 7 }
         ]
-      },
-      {
-        "type": "select",
-        "messageKey": "FACE_COLOR",
-        "label": "Face color",
-        "defaultValue": 0,
-        "options": [
-          { "label": "Default", "value": 0 },
-          { "label": "White", "value": 1 },
-          { "label": "Black", "value": 2 },
-          { "label": "Red", "value": 3 },
-          { "label": "Orange", "value": 4 },
-          { "label": "Yellow", "value": 5 },
-          { "label": "Green", "value": 6 },
-          { "label": "Blue", "value": 7 },
-          { "label": "Purple", "value": 8 },
-          { "label": "Pink", "value": 9 },
-          { "label": "Gray", "value": 10 }
-        ]
       }
-      // {
-      //   "type": "select",
-      //   "messageKey": "FONT_SIZE",
-      //   "label": "Font Size",
-      //   "defaultValue": "medium",
-      //   "options": [
-      //     {
-      //       "label": "Large (34pt)",
-      //       "value": "large"
-      //     },
-      //     {
-      //       "label": "Medium (28pt)",
-      //       "value": "medium"
-      //     },
-      //     {
-      //       "label": "Small (24pt)",
-      //       "value": "small"
-      //     },
-      //     {
-      //       "label": "Extra Small (18pt)",
-      //       "value": "xsmall"
-      //     }
-      //   ]
-      // }
     ]
   },
   {

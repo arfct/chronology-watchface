@@ -83,17 +83,40 @@ static Layer *s_face_layer;
 static Layer *s_hand_layer;
 static TextLayer *s_battery_layer;
 static bool debug = false;
-static bool inverted = true;
 static float s_scale = 1.0f;
 static int16_t s_orbit_inset = 150;
-static int s_hand_color_index = 0;
+static int s_background_color_index = 0;
 static int s_face_color_index = 0;
+static int s_hand_color_index = 0;
+
+static GColor background_color() {
+#if defined(PBL_COLOR)
+  switch (s_background_color_index) {
+    case 1: return GColorWhite;
+    case 2: return GColorRed;
+    case 3: return GColorOrange;
+    case 4: return GColorYellow;
+    case 5: return GColorGreen;
+    case 6: return GColorBlue;
+    case 7: return GColorPurple;
+    case 8: return GColorShockingPink;
+    case 9: return GColorLightGray;
+    default: return GColorBlack;
+  }
+#else
+  return s_background_color_index == 1 ? GColorWhite : GColorBlack;
+#endif
+}
+
+static bool bg_is_light() {
+  return s_background_color_index == 1 || s_background_color_index == 4;
+}
 
 static GColor face_color() {
 #if defined(PBL_COLOR)
   switch (s_face_color_index) {
-    case 1: return GColorWhite;
-    case 2: return GColorBlack;
+    case 1: return GColorBlack;
+    case 2: return GColorWhite;
     case 3: return GColorRed;
     case 4: return GColorOrange;
     case 5: return GColorYellow;
@@ -102,18 +125,17 @@ static GColor face_color() {
     case 8: return GColorPurple;
     case 9: return GColorShockingPink;
     case 10: return GColorLightGray;
-    default: return inverted ? GColorBlack : GColorWhite;
+    default: return background_color();
   }
 #else
-  return inverted ? GColorBlack : GColorWhite;
+  if (s_face_color_index == 0) return background_color();
+  return s_face_color_index == 2 ? GColorWhite : GColorBlack;
 #endif
 }
 
 static bool face_is_light() {
-  // White or Yellow → black text/ticks; everything else → white
-  if (s_face_color_index == 1 || s_face_color_index == 5) return true;
-  if (s_face_color_index == 0) return !inverted;
-  return false;
+  if (s_face_color_index == 0) return bg_is_light();
+  return s_face_color_index == 2 || s_face_color_index == 5;
 }
 
 static GColor face_text_color() {
@@ -142,7 +164,6 @@ static GColor hand_color() {
 }
 // static int font_size_index = 1; // 0=large, 1=medium, 2=small, 3=xsmall (commented out)
 
-static void click_config_provider(void *context);
 static void inbox_received_callback(DictionaryIterator *iterator, void *context);
 static void inbox_dropped_callback(AppMessageResult reason, void *context);
 static void outbox_failed_callback(DictionaryIterator *iterator, AppMessageResult reason, void *context);
@@ -271,8 +292,6 @@ static void my_hand_draw(Layer *layer, GContext *ctx)
 static void my_face_draw(Layer *layer, GContext *ctx)
 {
   GRect bounds = layer_get_bounds(layer);
-
-  graphics_context_set_fill_color(ctx, face_color());
   const int16_t half_h = bounds.size.h / 2;
   const int16_t circle_radius = (int16_t)(90 * s_scale);
   const int16_t number_inset = (int16_t)(60 * s_scale);
@@ -286,6 +305,12 @@ static void my_face_draw(Layer *layer, GContext *ctx)
       (int16_t)(24 * s_scale);
 #endif
   const int16_t ascender = (int16_t)(8 * s_scale);
+
+  // Fill the face disk (omitted when face is transparent), 4px beyond the marker ring
+  if (s_face_color_index != 0) {
+    graphics_context_set_fill_color(ctx, face_color());
+    graphics_fill_circle(ctx, GPoint(half_h, half_h), bounds.size.w / 2 + 8);
+  }
 
   graphics_context_set_stroke_color(ctx, face_text_color());
   graphics_draw_circle(ctx, GPoint(half_h, half_h), circle_radius);
@@ -369,6 +394,7 @@ static void main_window_load(Window *window)
 
   s_face_layer = layer_create(GRect(0, 0, bounds.size.h * 3, bounds.size.h * 3));
   layer_set_update_proc(s_face_layer, my_face_draw);
+  layer_set_clips(s_face_layer, false);
 
   s_hand_layer = layer_create(bounds);
   layer_set_update_proc(s_hand_layer, my_hand_draw);
@@ -386,41 +412,18 @@ static void main_window_load(Window *window)
 
   update_frame_location();
 
-  // Add it as a child layer to the Window's root layer
-  layer_add_child(window_layer, s_hand_layer);
+  // Face below, hand on top so the hand renders over the dial and marks
   layer_add_child(window_layer, s_face_layer);
-
-  window_set_click_config_provider(window, click_config_provider);
-}
-
-static void select_click_handler(ClickRecognizerRef recognizer, void *context)
-{
-  inverted = !inverted;
-  persist_write_bool(0, inverted);
-  window_set_background_color(s_main_window, face_color());
-  layer_mark_dirty(s_face_layer);
-  layer_mark_dirty(s_hand_layer);
-}
-
-static void click_config_provider(void *context)
-{
-  window_single_click_subscribe(BUTTON_ID_SELECT, select_click_handler);
+  layer_add_child(window_layer, s_hand_layer);
 }
 
 static void inbox_received_callback(DictionaryIterator *iterator, void *context)
 {
-  Tuple *invert_tuple = dict_find(iterator, MESSAGE_KEY_INVERT_COLORS);
-  if (invert_tuple)
+  Tuple *bg_tuple = dict_find(iterator, MESSAGE_KEY_BACKGROUND_COLOR);
+  if (bg_tuple)
   {
-    inverted = invert_tuple->value->int32 == 0;
-    persist_write_bool(0, inverted);
-  }
-
-  Tuple *hand_color_tuple = dict_find(iterator, MESSAGE_KEY_HAND_COLOR);
-  if (hand_color_tuple)
-  {
-    s_hand_color_index = hand_color_tuple->value->int32;
-    persist_write_int(2, s_hand_color_index);
+    s_background_color_index = bg_tuple->value->int32;
+    persist_write_int(4, s_background_color_index);
   }
 
   Tuple *face_color_tuple = dict_find(iterator, MESSAGE_KEY_FACE_COLOR);
@@ -430,7 +433,14 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     persist_write_int(3, s_face_color_index);
   }
 
-  window_set_background_color(s_main_window, face_color());
+  Tuple *hand_color_tuple = dict_find(iterator, MESSAGE_KEY_HAND_COLOR);
+  if (hand_color_tuple)
+  {
+    s_hand_color_index = hand_color_tuple->value->int32;
+    persist_write_int(2, s_hand_color_index);
+  }
+
+  window_set_background_color(s_main_window, background_color());
   layer_mark_dirty(s_face_layer);
   layer_mark_dirty(s_hand_layer);
 
@@ -472,14 +482,21 @@ static void main_window_unload(Window *window)
 
 static void init()
 {
-  inverted = persist_exists(0) ? persist_read_bool(0) : true;
   s_hand_color_index = persist_exists(2) ? persist_read_int(2) : 0;
   s_face_color_index = persist_exists(3) ? persist_read_int(3) : 0;
+  if (persist_exists(4)) {
+    s_background_color_index = persist_read_int(4);
+  } else if (persist_exists(0)) {
+    // Migrate from old Light mode toggle: dark (inverted) → Black, light → White
+    s_background_color_index = persist_read_bool(0) ? 0 : 1;
+  } else {
+    s_background_color_index = 0;
+  }
   // font_size_index = persist_exists(1) ? persist_read_int(1) : 1; // default to medium (commented out)
 
   // Create main Window element and assign to pointer
   s_main_window = window_create();
-  window_set_background_color(s_main_window, face_color());
+  window_set_background_color(s_main_window, background_color());
 
   // Set handlers to manage the elements inside the Window
   window_set_window_handlers(s_main_window, (WindowHandlers){
