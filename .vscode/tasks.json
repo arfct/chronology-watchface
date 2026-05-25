@@ -1,0 +1,35 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "install-emulator",
+      "type": "shell",
+      "command": "pebble build && pebble install --emulator gabbro && pebble logs",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "screenshots",
+      "type": "shell",
+      "command": "pebble build && pebble install --emulator aplite && pebble screenshot store/screenshots/screenshot_aplite.png --emulator aplite --no-open && pebble install --emulator basalt && pebble screenshot store/screenshots/screenshot_basalt.png --emulator basalt --no-open && pebble install --emulator chalk && pebble screenshot store/screenshots/screenshot_chalk.png --emulator chalk --no-open && pebble install --emulator diorite && pebble screenshot store/screenshots/screenshot_diorite.png --emulator diorite --no-open && pebble install --emulator emery && pebble screenshot store/screenshots/screenshot_emery.png --emulator emery --no-open && pebble install --emulator gabbro && pebble screenshot store/screenshots/screenshot_gabbro.png --emulator gabbro",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "install-phone",
+      "type": "shell",
+      "command": "pebble build && pebble install --phone 10.0.3.173",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    }
+  ]
+}

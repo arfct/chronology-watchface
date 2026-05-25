@@ -1,4 +1,5 @@
 #include <pebble.h>
+#include "../../build/include/message_keys.auto.h"
 
 // PDC (Pebble Draw Command) structures
 typedef struct
@@ -83,8 +84,88 @@ static Layer *s_hand_layer;
 static TextLayer *s_battery_layer;
 static bool debug = false;
 static bool inverted = true;
+static float s_scale = 1.0f;
+static int16_t s_orbit_inset = 150;
+static int s_hand_color_index = 0;
+static int s_face_color_index = 0;
+
+static GColor face_color() {
+#if defined(PBL_COLOR)
+  switch (s_face_color_index) {
+    case 1: return GColorWhite;
+    case 2: return GColorBlack;
+    case 3: return GColorRed;
+    case 4: return GColorOrange;
+    case 5: return GColorYellow;
+    case 6: return GColorGreen;
+    case 7: return GColorBlue;
+    case 8: return GColorPurple;
+    case 9: return GColorShockingPink;
+    case 10: return GColorLightGray;
+    default: return inverted ? GColorBlack : GColorWhite;
+  }
+#else
+  return inverted ? GColorBlack : GColorWhite;
+#endif
+}
+
+static bool face_is_light() {
+  // White or Yellow → black text/ticks; everything else → white
+  if (s_face_color_index == 1 || s_face_color_index == 5) return true;
+  if (s_face_color_index == 0) return !inverted;
+  return false;
+}
+
+static GColor face_text_color() {
+  return face_is_light() ? GColorBlack : GColorWhite;
+}
+
+static GColor face_minor_tick_color() {
+  return face_is_light() ? GColorDarkGray : GColorLightGray;
+}
+
+static GColor hand_color() {
+#if defined(PBL_COLOR)
+  switch (s_hand_color_index) {
+    case 1: return GColorOrange;
+    case 2: return GColorYellow;
+    case 3: return GColorGreen;
+    case 4: return GColorBlue;
+    case 5: return GColorPurple;
+    case 6: return GColorShockingPink;
+    case 7: return face_is_light() ? GColorDarkGray : GColorLightGray;
+    default: return GColorRed;
+  }
+#else
+  return face_is_light() ? GColorDarkGray : GColorLightGray;
+#endif
+}
+// static int font_size_index = 1; // 0=large, 1=medium, 2=small, 3=xsmall (commented out)
 
 static void click_config_provider(void *context);
+static void inbox_received_callback(DictionaryIterator *iterator, void *context);
+static void inbox_dropped_callback(AppMessageResult reason, void *context);
+static void outbox_failed_callback(DictionaryIterator *iterator, AppMessageResult reason, void *context);
+static void outbox_sent_callback(DictionaryIterator *iterator, void *context);
+// Font size setting commented out - not working correctly
+// static GFont get_font_for_index(int index);
+
+// static GFont get_font_for_index(int index)
+// {
+//   switch (index)
+//   {
+//   case 0:
+//     return fonts_get_system_font(FONT_KEY_BITHAM_34_MEDIUM_NUMBERS);
+//   case 1:
+//     return fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
+//   case 2:
+//     return fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
+//   case 3:
+//     return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+//   default:
+//     return fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
+//   }
+// }
 
 static void update_time()
 {
@@ -124,7 +205,7 @@ static void update_frame_location()
   GRect frame = layer_get_frame(s_face_layer);
   GRect frame2 = layer_get_frame(s_hand_layer);
 
-  GPoint origin = gpoint_from_polar(grect_inset(frame2, GEdgeInsets(-150)), GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(angle + 180));
+  GPoint origin = gpoint_from_polar(grect_inset(frame2, GEdgeInsets(-s_orbit_inset)), GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(angle + 180));
   frame.origin = origin;
   frame.origin.x -= frame.size.w / 2;
   frame.origin.y -= frame.size.h / 2;
@@ -153,13 +234,21 @@ static void my_hand_draw(Layer *layer, GContext *ctx)
   if (debug)
     angle = 12 * tick_time->tm_sec;
 
-  graphics_context_set_fill_color(ctx, PBL_IF_BW_ELSE(inverted ? GColorDarkGray : GColorLightGray, GColorRed));
+  graphics_context_set_fill_color(ctx, hand_color());
 
   GPoint center = GPoint(face_frame.origin.x + face_frame.size.w / 2, face_frame.origin.y + face_frame.size.h / 2);
   GPoint end_point = gpoint_from_polar(face_frame, GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(angle));
 
   int32_t perp_angle = DEG_TO_TRIGANGLE(angle);
-  int32_t perp_thickness = 3;
+  int32_t perp_thickness = (int32_t)(
+#if PBL_DISPLAY_WIDTH == 260
+      5
+#else
+      3
+#endif
+      * s_scale);
+  if (perp_thickness < 1)
+    perp_thickness = 1;
 
   GPoint offset = {
       .x = (int16_t)(perp_thickness * cos_lookup(perp_angle) / TRIG_MAX_RATIO),
@@ -183,65 +272,81 @@ static void my_face_draw(Layer *layer, GContext *ctx)
 {
   GRect bounds = layer_get_bounds(layer);
 
-  // Draw a white filled circle a radius of half the layer height
-  graphics_context_set_fill_color(ctx, inverted ? GColorBlack : GColorWhite);
+  graphics_context_set_fill_color(ctx, face_color());
   const int16_t half_h = bounds.size.h / 2;
+  const int16_t circle_radius = (int16_t)(90 * s_scale);
+  const int16_t number_inset = (int16_t)(60 * s_scale);
+  const int16_t hour_inset = (int16_t)(30 * s_scale);
+  const int16_t half_mark_len = (int16_t)(16 * s_scale);
+  const int16_t quarter_mark_len = (int16_t)(5 * s_scale);
+  const int16_t text_rect_half =
+#if PBL_DISPLAY_WIDTH == 260
+      (int16_t)(36);
+#else
+      (int16_t)(24 * s_scale);
+#endif
+  const int16_t ascender = (int16_t)(8 * s_scale);
 
-  graphics_draw_circle(ctx, GPoint(half_h, half_h), 90);
+  graphics_context_set_stroke_color(ctx, face_text_color());
+  graphics_draw_circle(ctx, GPoint(half_h, half_h), circle_radius);
 
   graphics_context_set_stroke_width(ctx, 2);
-  graphics_context_set_text_color(ctx, inverted ? GColorWhite : GColorBlack);
+  graphics_context_set_text_color(ctx, face_text_color());
 
   for (int i = 0; i < 12; i++)
   {
     int angle = DEG_TO_TRIGANGLE(i * 30);
 
-    static char buf[] = "000"; /* <-- implicit NUL-terminator at the end here */
+    static char buf[] = "000";
     snprintf(buf, sizeof(buf), "%01d", i == 0 ? 12 : i);
-    int ascender = 8;
-    GPoint text_point = gpoint_from_polar(grect_crop(bounds, 60), GOvalScaleModeFitCircle, angle);
-    GRect text_rect = GRect(text_point.x - 24, text_point.y - 24, 48, 48);
+    GPoint text_point = gpoint_from_polar(grect_crop(bounds, number_inset), GOvalScaleModeFitCircle, angle);
+    GRect text_rect = GRect(text_point.x - text_rect_half, text_point.y - text_rect_half, text_rect_half * 2, text_rect_half * 2);
 
+    GFont number_font = fonts_get_system_font(
+#if PBL_DISPLAY_WIDTH == 260
+        FONT_KEY_BITHAM_42_LIGHT
+#else
+        FONT_KEY_BITHAM_34_MEDIUM_NUMBERS
+#endif
+    );
     GSize size = graphics_text_layout_get_content_size(buf,
-                                                       fonts_get_system_font(FONT_KEY_BITHAM_34_MEDIUM_NUMBERS),
+                                                       number_font,
                                                        text_rect, GTextOverflowModeFill, GTextAlignmentCenter);
-
-    /// graphics_draw_bitmap_in_rect(ctx, image, layer_get_bounds(layer));
 
     text_rect.size = size;
     text_rect.size.h -= ascender;
     text_rect.origin = GPoint(text_point.x - size.w / 2, text_point.y - size.h / 2);
 
     graphics_draw_text(ctx, buf,
-                       fonts_get_system_font(FONT_KEY_BITHAM_34_MEDIUM_NUMBERS),
+                       number_font,
+#if PBL_DISPLAY_WIDTH == 260
+                       text_rect,
+#else
                        grect_inset(text_rect, GEdgeInsets4(-8, 0, 0, 0)),
+#endif
                        GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 
-    //  Draw hour
-    graphics_context_set_stroke_color(ctx, inverted ? GColorWhite : GColorBlack);
+    graphics_context_set_stroke_color(ctx, face_text_color());
+#if PBL_DISPLAY_WIDTH == 260
+    graphics_context_set_stroke_width(ctx, 3);
+#else
     graphics_context_set_stroke_width(ctx, 2);
+#endif
     graphics_draw_line(ctx,
-                       gpoint_from_polar(grect_crop(bounds, 30), GOvalScaleModeFitCircle, angle),
+                       gpoint_from_polar(grect_crop(bounds, hour_inset), GOvalScaleModeFitCircle, angle),
                        gpoint_from_polar(bounds, GOvalScaleModeFitCircle, angle));
 
-    // Draw all 5-minute markers in one loop
     for (int j = 1; j < 12; j++)
     {
       int16_t line_length;
-      GColor line_color = inverted ? GColorLightGray : GColorDarkGray;
+      GColor line_color = face_minor_tick_color();
 
       if (j % 6 == 0)
-      { // Half hour marks
-        line_length = 16;
-      }
+        line_length = half_mark_len;
       else if (j % 3 == 0)
-      { // Quarter hour marks
-        line_length = 5;
-      }
+        line_length = quarter_mark_len;
       else
-      { // 5-minute marks
         line_length = 0;
-      }
       angle += DEG_TO_TRIGANGLE(2.5);
 
       graphics_context_set_stroke_color(ctx, line_color);
@@ -255,12 +360,12 @@ static void my_face_draw(Layer *layer, GContext *ctx)
 
 static void main_window_load(Window *window)
 {
-
-  // Get information about the Window
   Layer *window_layer = window_get_root_layer(window);
   GRect bounds = layer_get_bounds(window_layer);
 
-  // Create the TextLayer with specific bounds
+  int16_t screen_size = bounds.size.w < bounds.size.h ? bounds.size.w : bounds.size.h;
+  s_scale = 180.0f / (float)screen_size;
+  s_orbit_inset = (int16_t)(150.0f * (float)screen_size / 180.0f);
 
   s_face_layer = layer_create(GRect(0, 0, bounds.size.h * 3, bounds.size.h * 3));
   layer_set_update_proc(s_face_layer, my_face_draw);
@@ -273,11 +378,11 @@ static void main_window_load(Window *window)
       GRect(0, PBL_IF_ROUND_ELSE(58, 52), bounds.size.w, 50));
 
   // Improve the layout to be more like a watchface
-  text_layer_set_background_color(s_battery_layer, GColorClear);
-  text_layer_set_text_color(s_battery_layer, GColorDarkGray);
-  text_layer_set_text(s_battery_layer, "50");
-  text_layer_set_font(s_battery_layer, fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD));
-  text_layer_set_text_alignment(s_battery_layer, GTextAlignmentCenter);
+  // text_layer_set_background_color(s_battery_layer, GColorClear);
+  // text_layer_set_text_color(s_battery_layer, GColorDarkGray);
+  // text_layer_set_text(s_battery_layer, "50");
+  // text_layer_set_font(s_battery_layer, fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD));
+  // text_layer_set_text_alignment(s_battery_layer, GTextAlignmentCenter);
 
   update_frame_location();
 
@@ -292,7 +397,7 @@ static void select_click_handler(ClickRecognizerRef recognizer, void *context)
 {
   inverted = !inverted;
   persist_write_bool(0, inverted);
-  window_set_background_color(s_main_window, inverted ? GColorBlack : GColorWhite);
+  window_set_background_color(s_main_window, face_color());
   layer_mark_dirty(s_face_layer);
   layer_mark_dirty(s_hand_layer);
 }
@@ -300,6 +405,63 @@ static void select_click_handler(ClickRecognizerRef recognizer, void *context)
 static void click_config_provider(void *context)
 {
   window_single_click_subscribe(BUTTON_ID_SELECT, select_click_handler);
+}
+
+static void inbox_received_callback(DictionaryIterator *iterator, void *context)
+{
+  Tuple *invert_tuple = dict_find(iterator, MESSAGE_KEY_INVERT_COLORS);
+  if (invert_tuple)
+  {
+    inverted = invert_tuple->value->int32 == 0;
+    persist_write_bool(0, inverted);
+  }
+
+  Tuple *hand_color_tuple = dict_find(iterator, MESSAGE_KEY_HAND_COLOR);
+  if (hand_color_tuple)
+  {
+    s_hand_color_index = hand_color_tuple->value->int32;
+    persist_write_int(2, s_hand_color_index);
+  }
+
+  Tuple *face_color_tuple = dict_find(iterator, MESSAGE_KEY_FACE_COLOR);
+  if (face_color_tuple)
+  {
+    s_face_color_index = face_color_tuple->value->int32;
+    persist_write_int(3, s_face_color_index);
+  }
+
+  window_set_background_color(s_main_window, face_color());
+  layer_mark_dirty(s_face_layer);
+  layer_mark_dirty(s_hand_layer);
+
+  // Font size setting commented out - not working correctly
+  // Tuple *font_size_tuple = dict_find(iterator, MESSAGE_KEY_FONT_SIZE);
+  // if (font_size_tuple)
+  // {
+  //   font_size_index = font_size_tuple->value->int32;
+  //   if (font_size_index < 0 || font_size_index > 3)
+  //   {
+  //     font_size_index = 1; // default to medium
+  //   }
+  //   persist_write_int(1, font_size_index);
+  //   APP_LOG(APP_LOG_LEVEL_INFO, "Font size changed to index: %d", font_size_index);
+  //   layer_mark_dirty(s_face_layer);
+  // }
+}
+
+static void inbox_dropped_callback(AppMessageResult reason, void *context)
+{
+  APP_LOG(APP_LOG_LEVEL_ERROR, "Message dropped!");
+}
+
+static void outbox_failed_callback(DictionaryIterator *iterator, AppMessageResult reason, void *context)
+{
+  APP_LOG(APP_LOG_LEVEL_ERROR, "Outbox send failed!");
+}
+
+static void outbox_sent_callback(DictionaryIterator *iterator, void *context)
+{
+  APP_LOG(APP_LOG_LEVEL_INFO, "Outbox send success!");
 }
 
 static void main_window_unload(Window *window)
@@ -310,11 +472,14 @@ static void main_window_unload(Window *window)
 
 static void init()
 {
-  inverted = PBL_IF_BW_ELSE(true, false); // persist_read_bool(0)
+  inverted = persist_exists(0) ? persist_read_bool(0) : true;
+  s_hand_color_index = persist_exists(2) ? persist_read_int(2) : 0;
+  s_face_color_index = persist_exists(3) ? persist_read_int(3) : 0;
+  // font_size_index = persist_exists(1) ? persist_read_int(1) : 1; // default to medium (commented out)
 
   // Create main Window element and assign to pointer
   s_main_window = window_create();
-  window_set_background_color(s_main_window, inverted ? GColorBlack : GColorWhite);
+  window_set_background_color(s_main_window, face_color());
 
   // Set handlers to manage the elements inside the Window
   window_set_window_handlers(s_main_window, (WindowHandlers){
@@ -330,6 +495,15 @@ static void init()
   // Register with TickTimerService
   tick_timer_service_subscribe(SECOND_UNIT, tick_handler);
   battery_state_service_subscribe(battery_handler);
+
+  // Register callbacks for AppMessage
+  app_message_register_inbox_received(inbox_received_callback);
+  app_message_register_inbox_dropped(inbox_dropped_callback);
+  app_message_register_outbox_failed(outbox_failed_callback);
+  app_message_register_outbox_sent(outbox_sent_callback);
+
+  // Open AppMessage with reasonable buffer sizes
+  app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
 }
 
 static void deinit()

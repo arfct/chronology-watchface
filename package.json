@@ -1,15 +1,21 @@
 {
   "name": "Chronology",
   "author": "Artifact",
-  "version": "1.1.0",
-  "keywords": ["pebble-watchface"],
+  "version": "2.2.0",
+  "keywords": [
+    "pebble-watchface"
+  ],
   "private": true,
-  "dependencies": {},
+  "dependencies": {
+    "@rebble/clay": "^1.0.10"
+  },
   "scripts": {
-    "install-emulator": "pebble build && pebble install --emulator aplite && pebble logs"
+    "install-emulator": "pebble build && pebble install --emulator gabbro && pebble logs",
+    "screenshots": "pebble build && pebble install --emulator aplite && pebble screenshot store/screenshots/screenshot_aplite.png --emulator aplite --no-open && pebble install --emulator basalt && pebble screenshot store/screenshots/screenshot_basalt.png --emulator basalt --no-open && pebble install --emulator chalk && pebble screenshot store/screenshots/screenshot_chalk.png --emulator chalk --no-open && pebble install --emulator diorite && pebble screenshot store/screenshots/screenshot_diorite.png --emulator diorite --no-open && pebble install --emulator emery && pebble screenshot store/screenshots/screenshot_emery.png --emulator emery --no-open && pebble install --emulator gabbro && pebble screenshot store/screenshots/screenshot_gabbro.png --emulator gabbro",
+    "install-phone": "pebble build && pebble install --cloudpebble"
   },
   "pebble": {
-    "displayName": "Chronology 1.1",
+    "displayName": "Chronology 2.0",
     "uuid": "6ed35b3b-813b-402c-b3ed-c7d0146f70ec",
     "sdkVersion": "3",
     "enableMultiJS": true,
@@ -17,13 +23,20 @@
       "aplite",
       "basalt",
       "chalk",
-      "diorite"
+      "diorite",
+      "emery",
+      "gabbro"
     ],
     "watchapp": {
       "watchface": true
     },
+    "capabilities": [
+      "configurable"
+    ],
     "messageKeys": [
-      "dummy"
+      "INVERT_COLORS",
+      "HAND_COLOR",
+      "FACE_COLOR"
     ],
     "resources": {
       "media": [
@@ -32,6 +45,11 @@
           "type": "png",
           "name": "APP_ICON",
           "file": "images/app_icon.png"
+        },
+        {
+          "type": "png",
+          "name": "PREVIEW_IMAGE",
+          "file": "images/preview.png"
         }
       ]
     }

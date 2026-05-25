@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pebble build:*)",
+      "Bash(pebble clean:*)",
+      "Bash(npm install)",
+      "Bash(grep:*)",
+      "Bash(pebble screenshot:*)",
+      "Bash(mv:*)",
+      "Bash(convert:*)",
+      "Bash(magick:*)",
+      "Bash(find:*)",
+      "Bash(cp:*)",
+      "Bash(pebble install:*)",
+      "Bash(pebble logs:*)"
+    ],
+    "deny": []
+  }
+}

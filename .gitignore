@@ -53,3 +53,4 @@ dkms.conf
 /build
 .lock-waf_darwin_build
 .DS_Store
+/node_modules
